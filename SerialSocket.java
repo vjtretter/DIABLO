@@ -107,26 +107,20 @@ class SerialSocket implements Runnable {
                 byte[] data = Arrays.copyOf(buffer, len);
                 if(listener != null)
                     listener.onSerialRead(data);
-                //This section new
-                //Log.d("TEST",String.valueOf(len));
-                //if(data[0] == 48){//Check first byte for command (48=0 in ASCII)
-                    for(int i=0;i<len;i++) {
-                        //Log.d("data", String.valueOf(data[i]));
 
-                        if(data[i] == 10){// ASCII 10 (\n) terminates a command from the ESP32
-                            //Log.d("NewLine","Reset Counter");
-                            dataNumber = 0;
-                            //-----------------
-                            callCommand(cmdBuffer);//Do something with received data
-                            //-----------------
-                            cmdBuffer = new byte[8];//Clear command buffer
-                        }else{
-                            cmdBuffer[dataNumber] = data[i];
-                            dataNumber++;
-                        }
+                for(int i=0;i<len;i++) {
+                    if(data[i] == 10){// ASCII 10 (\n) terminates a command from the ESP32
+                        dataNumber = 0;//Reset counter
+                        //-----------------
+                        callCommand(cmdBuffer);//Do something with received data
+                        //-----------------
+                        cmdBuffer = new byte[8];//Clear command buffer
+                    }else{
+                        cmdBuffer[dataNumber] = data[i];
+                        dataNumber++;
                     }
-                //}
-                //----------------
+                }
+
             }
         } catch (Exception e) {
             connected = false;
@@ -147,7 +141,7 @@ class SerialSocket implements Runnable {
     private void callCommand(byte[] command){
         byte instruction = command[0];
         Log.d("Instruction",String.valueOf(instruction));//Log instruction command
-        for(int i=1;i<7;i++){
+        for(int i=1;i<7;i++){//Read through remaining saved values
             Log.d("Operand",String.valueOf(command[i]));
         }
         return;
