@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <BluetoothSerial.h>
 
 BluetoothSerial SerialBT;
@@ -6,7 +7,7 @@ BluetoothSerial SerialBT;
 #define pwmPin 4 // PWM-capable GPIO pin
 #define PIN_IN1  27 // ESP32 pin GIOP27 connected to the IN1 pin L298N
 #define PIN_IN2  15 // ESP32 pin GIOP15 connected to the IN2 pin L298N
-#define extendLimit 12  //Limit switch for fully extended DLP
+#define extendLimit 26  //Limit switch for fully extended DLP
 #define retractLimit 13 //Limit switch for fully retracted DLP
 #define startButton 14  //Button on skybox to start deployment
 
@@ -29,6 +30,8 @@ void setup() {
   pinMode(extendLimit, INPUT_PULLUP);
   pinMode(retractLimit, INPUT_PULLUP);
   pinMode(startButton, INPUT_PULLUP);
+  attachInterrupt(startButton, button_isr, FALLING);
+
   
   // Configure the PWM pin
   ledcSetup(motorChannel, freq, resolution);
@@ -48,9 +51,6 @@ void setup() {
 }
 
 void loop() {
-  if(!digitalRead(startButton)){
-    SerialBT.println("Start button pressed");
-  }
   if(!digitalRead(extendLimit)){
     SerialBT.println("Extended limit switch pressed");
   }
@@ -76,14 +76,17 @@ void loop() {
         //SerialBT.println("done.");
         asked_user = false; // Set asked_user to false to indicate that the user has responded
       }
-    } else {
-      delay(500); // Wait a short time to give the user a chance to respond
     }
   }
 
   // Motor code
   
   delay(500); // wait for half a second before repeating
+}
+
+void ARDUINO_ISR_ATTR button_isr() {
+  SerialBT.println("Start button pressed");
+  //delay(10);//debounce
 }
 
 void extend(){
