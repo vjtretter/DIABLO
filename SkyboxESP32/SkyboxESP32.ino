@@ -30,7 +30,7 @@ void setup() {
   pinMode(extendLimit, INPUT_PULLUP);
   pinMode(retractLimit, INPUT_PULLUP);
   pinMode(startButton, INPUT_PULLUP);
-  attachInterrupt(startButton, button_isr, FALLING);
+  attachInterrupt(startButton, button_isr, FALLING);//Attach interruput to the button
 
   
   // Configure the PWM pin
@@ -42,7 +42,7 @@ void setup() {
 
   // Direction pins
   digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
-  digitalWrite(PIN_IN2, HIGH);  // control the motor's direction in clockwise
+  digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
 
   // Bluetooth
   Serial.begin(115200);
@@ -51,12 +51,6 @@ void setup() {
 }
 
 void loop() {
-  if(!digitalRead(extendLimit)){
-    SerialBT.println("Extended limit switch pressed");
-  }
-  if(!digitalRead(retractLimit)){
-    SerialBT.println("Retracted limit switch pressed");
-  }
   // Bluetooth code
   if (SerialBT.connected(115200)) {
     if (!asked_user) {
@@ -78,15 +72,18 @@ void loop() {
       }
     }
   }
-
-  // Motor code
-  
-  delay(500); // wait for half a second before repeating
 }
 
+//When the button is pressed and is fully retracted
 void ARDUINO_ISR_ATTR button_isr() {
   SerialBT.println("Start button pressed");
-  //delay(10);//debounce
+  if(!digitalRead(extendLimit)){
+    SerialBT.println("Extend limit pressed and button pressed");
+    retract();
+  }else if(!digitalRead(retractLimit)){
+    SerialBT.println("Retract limit pressed and button pressed");
+    extend();
+  }
 }
 
 void extend(){
@@ -104,4 +101,8 @@ void retract(){
 void stop(){
   digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
   digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
+}
+
+bool flightChecks(){//This function will be used to return a boolean on whether it is acceptable for the drone to take off
+  return true;
 }
