@@ -14,7 +14,6 @@ BluetoothSerial SerialBT;
 #define extendLimit 26  //Limit switch for fully extended DLP
 #define retractLimit 25 //Limit switch for fully retracted DLP
 #define startButton 14  //Button on skybox to start deployment
-#define SEALEVELPRESSURE_HPA (1013.25)
 
 Adafruit_BME280 bme; // I2C instantiation for weather station
 
@@ -31,6 +30,7 @@ bool retracting = false;
 bool asked_user = false; // Keep track of whether the user has been asked the question yet
 
 void setup() {
+  Serial.begin(115200);
   // Pin modes
   pinMode(pwmPin, OUTPUT);
   pinMode(PIN_IN1, OUTPUT);
@@ -42,7 +42,7 @@ void setup() {
 
   //------------------------------------------------
   //Code for BME280
-  unsigned status = bme.begin();  
+  unsigned status = bme.begin(0x76);  
     // You can also pass in a Wire library object like &Wire2
     // status = bme.begin(0x76, &Wire2)
     if (!status) {
@@ -67,7 +67,7 @@ void setup() {
   digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
 
   // Bluetooth
-  Serial.begin(115200);
+  
   SerialBT.begin("ESP32test"); //Bluetooth device name
   Serial.println("The device started, now you can pair it with bluetooth!");
 }
