@@ -36,6 +36,7 @@ enum actuatorState{
 actuatorState actuator = stopped_state;
 
 bool asked_user = false; // Keep track of whether the user has been asked the question yet
+bool flightChecked = false; //Have flight checks been run?
 
 void setup() {
   Serial.begin(115200);
@@ -51,17 +52,17 @@ void setup() {
   //------------------------------------------------
   //Code for BME280
   unsigned status = bme.begin(0x76);  
-    // You can also pass in a Wire library object like &Wire2
-    // status = bme.begin(0x76, &Wire2)
-    if (!status) {
-        Serial.println("Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
-        Serial.print("SensorID was: 0x"); Serial.println(bme.sensorID(),16);
-        Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
-        Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
-        Serial.print("        ID of 0x60 represents a BME 280.\n");
-        Serial.print("        ID of 0x61 represents a BME 680.\n");
-        while (1) delay(10);
-    }
+  // You can also pass in a Wire library object like &Wire2
+  // status = bme.begin(0x76, &Wire2)
+  if (!status) {
+      Serial.println("Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
+      Serial.print("SensorID was: 0x"); Serial.println(bme.sensorID(),16);
+      Serial.print("        ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
+      Serial.print("   ID of 0x56-0x58 represents a BMP 280,\n");
+      Serial.print("        ID of 0x60 represents a BME 280.\n");
+      Serial.print("        ID of 0x61 represents a BME 680.\n");
+      while (1) delay(10);
+  }
   //-----------------------------------------------
   // Configure the PWM pin
   ledcSetup(motorChannel, freq, resolution);
@@ -82,7 +83,12 @@ void setup() {
 
 void loop() {
 
-  //poll for limmit switch
+  if(!digitalRead(extendLimit) && actuator == stopped_state && !flightChecked){
+    SerialBT.println("Flight checks");
+    
+    flightChecked = true;
+  }
+  //poll for limit switch
   if((!digitalRead(extendLimit) && actuator == extending || !digitalRead(retractLimit) && actuator == retracting)){//Stop if either limit switch triggers
     safeDelay(10);//Debounce delay
     if((!digitalRead(extendLimit) && actuator == extending || !digitalRead(retractLimit) && actuator == retracting)){
@@ -124,21 +130,22 @@ void ARDUINO_ISR_ATTR button_isr() {
     }else if(!digitalRead(retractLimit) && actuator == stopped_state){
       SerialBT.println("Retract limit pressed and button pressed");
       extend();
+      flightChecked = false;//Reset flight checks
     }
   }
 }
 
 void extend(){
   SerialBT.println("extending");
-  digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
-  digitalWrite(PIN_IN2, HIGH);  // control the motor's direction in clockwise
+  digitalWrite(PIN_IN1, HIGH); // control the motor's direction in clockwise
+  digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
   actuator = extending;
 }
 
 void retract(){
   SerialBT.println("retracting");
-  digitalWrite(PIN_IN1, HIGH); // control the motor's direction in clockwise
-  digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
+  digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
+  digitalWrite(PIN_IN2, HIGH);  // control the motor's direction in clockwise
   actuator = retracting;
 }
 
