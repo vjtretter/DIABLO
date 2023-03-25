@@ -4,8 +4,10 @@
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include <BlockNot.h>
 
 BluetoothSerial SerialBT;
+BlockNot debounceTimer(10);
 
 // Pin definitions
 #define pwmPin 4 // PWM-capable GPIO pin
@@ -24,8 +26,14 @@ const int resolution = 8; // Resolution in bits (e.g., 8-bit resolution = 0-255)
 
 // Motor speed
 const int motorSpeed = 255; // Set a value between 0 (stopped) and 255 (full speed)
-bool extending = false;
-bool retracting = false;
+
+enum actuatorState{
+  stopped_state,
+  extending,
+  retracting
+};
+
+actuatorState actuator = stopped_state;
 
 bool asked_user = false; // Keep track of whether the user has been asked the question yet
 
@@ -73,17 +81,15 @@ void setup() {
 }
 
 void loop() {
-  // if(!digitalRead(extendLimit)){
-  //   SerialBT.println("Extend limit switch pressed");
-  // }
-  // if(!digitalRead(retractLimit)){
-  //   SerialBT.println("Retract limit switch pressed");
-  // }
 
-  // if((!digitalRead(extendLimit) && extending) || (!digitalRead(retractLimit) && retracting)){//Stop if either limit switch triggers
-  //   SerialBT.println("Limit Reached");
-  //   stop();
-  // }
+  //poll for limmit switch
+  if((!digitalRead(extendLimit) && actuator == extending || !digitalRead(retractLimit) && actuator == retracting)){//Stop if either limit switch triggers
+    safeDelay(10);//Debounce delay
+    if((!digitalRead(extendLimit) && actuator == extending || !digitalRead(retractLimit) && actuator == retracting)){
+      SerialBT.println("Limit Reached");
+      stop();
+    }
+  }
   // Bluetooth code
   if (SerialBT.connected(115200)) {
     if (!asked_user) {
@@ -109,33 +115,38 @@ void loop() {
 
 //When the button is pressed and is fully retracted
 void ARDUINO_ISR_ATTR button_isr() {
-  SerialBT.println("Start button pressed");
-  if(!digitalRead(extendLimit)){
-    SerialBT.println("Extend limit pressed and button pressed");
-    retract();
-  }else if(!digitalRead(retractLimit)){
-    SerialBT.println("Retract limit pressed and button pressed");
-    extend();
+  safeDelay(10);//Debounce delay
+  if(!digitalRead(startButton)){
+    SerialBT.println("Start button pressed");
+    if(!digitalRead(extendLimit) && actuator == stopped_state){
+      SerialBT.println("Extend limit pressed and button pressed");
+      retract();
+    }else if(!digitalRead(retractLimit) && actuator == stopped_state){
+      SerialBT.println("Retract limit pressed and button pressed");
+      extend();
+    }
   }
 }
 
 void extend(){
+  SerialBT.println("extending");
   digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
   digitalWrite(PIN_IN2, HIGH);  // control the motor's direction in clockwise
-  extending = true;
-  retracting = false;
+  actuator = extending;
 }
 
 void retract(){
+  SerialBT.println("retracting");
   digitalWrite(PIN_IN1, HIGH); // control the motor's direction in clockwise
   digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
-  extending = false;
-  retracting = true;
+  actuator = retracting;
 }
 
 void stop(){
+  SerialBT.println("stopping");
   digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
   digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
+  actuator = stopped_state;
 }
 
 bool flightChecks(){//This function will be used to return a boolean on whether it is acceptable for the drone to take off
@@ -166,4 +177,12 @@ bool flightChecks(){//This function will be used to return a boolean on whether 
 
   Serial.println("All systems are go!");
   return true;
+}
+
+//delay() breaks code.  This is safer
+void safeDelay(long duration_millis){  
+  long startTime = millis();
+  while(millis() - startTime < duration_millis){
+    //Tie up code for this many operations
+  }  
 }
