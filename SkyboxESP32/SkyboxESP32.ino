@@ -16,6 +16,7 @@ BlockNot debounceTimer(10);
 #define extendLimit 26  //Limit switch for fully extended DLP
 #define retractLimit 25 //Limit switch for fully retracted DLP
 #define startButton 14  //Button on skybox to start deployment
+#define batteryLogic 5  //Output pin to toggle whether batteries are charging or connected to the drone
 
 Adafruit_BME280 bme; // I2C instantiation for weather station
 
@@ -37,6 +38,7 @@ actuatorState actuator = stopped_state;
 
 bool asked_user = false; // Keep track of whether the user has been asked the question yet
 bool flightChecked = false; //Have flight checks been run?
+bool batteryCharging = false; //toggle to toggle battery charging switch
 
 void setup() {
   Serial.begin(115200);
@@ -48,6 +50,7 @@ void setup() {
   pinMode(retractLimit, INPUT_PULLUP);
   pinMode(startButton, INPUT_PULLUP);
   attachInterrupt(startButton, button_isr, FALLING);//Attach interruput to the button
+  pinMode(batteryLogic, OUTPUT);
 
   //------------------------------------------------
   //Code for BME280
@@ -75,23 +78,42 @@ void setup() {
   digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
   digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
 
+  digitalWrite(batteryLogic, LOW);  //Batteryies start conneected to drone
+
   // Bluetooth
   
-  SerialBT.begin("ESP32test"); //Bluetooth device name
+  SerialBT.begin("Skybox"); //Bluetooth device name
   Serial.println("The device started, now you can pair it with bluetooth!");
 }
 
 void loop() {
 
+  //When DLP is fully extended
   if(!digitalRead(extendLimit) && actuator == stopped_state && !flightChecked){
-    SerialBT.println("Flight checks");
-    
-    flightChecked = true;
+    safeDelay(1000);
+    if(flightChecks()){//Wait 1s and then do flight checks
+      //If flight checks are good
+    }else{
+      //If flight checks encounter a problem
+      retract();
+    }
   }
-  //poll for limit switch
+
+  if(!digitalRead(retractLimit) && actuator == stopped_state && !batteryCharging){
+    /**
+    Communicate with SDK to turn off drone before charging batteries
+    Check that batteries are connected
+    */
+
+    digitalWrite(batteryLogic, HIGH);//Start charging
+
+    batteryCharging = true;
+  }
+
+  //poll for limit switch fail-safe
   if((!digitalRead(extendLimit) && actuator == extending || !digitalRead(retractLimit) && actuator == retracting)){//Stop if either limit switch triggers
     safeDelay(10);//Debounce delay
-    if((!digitalRead(extendLimit) && actuator == extending || !digitalRead(retractLimit) && actuator == retracting)){
+    if((!digitalRead(extendLimit) && actuator == extending || !digitalRead(retractLimit) && actuator == retracting)){//Part of debounce
       SerialBT.println("Limit Reached");
       stop();
     }
@@ -137,41 +159,41 @@ void ARDUINO_ISR_ATTR button_isr() {
 
 void extend(){
   SerialBT.println("extending");
-  digitalWrite(PIN_IN1, HIGH); // control the motor's direction in clockwise
-  digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
+  digitalWrite(PIN_IN1, HIGH);
+  digitalWrite(PIN_IN2, LOW); 
   actuator = extending;
 }
 
 void retract(){
   SerialBT.println("retracting");
-  digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
-  digitalWrite(PIN_IN2, HIGH);  // control the motor's direction in clockwise
+  digitalWrite(PIN_IN1, LOW);
+  digitalWrite(PIN_IN2, HIGH);
   actuator = retracting;
 }
 
 void stop(){
   SerialBT.println("stopping");
-  digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
-  digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
+  digitalWrite(PIN_IN1, LOW);
+  digitalWrite(PIN_IN2, LOW);
   actuator = stopped_state;
 }
 
 bool flightChecks(){//This function will be used to return a boolean on whether it is acceptable for the drone to take off
-  Serial.println("Begin flight checks");
+  SerialBT.println("Begin flight checks");
 
   if(digitalRead(extendLimit)){//Is the door not fully extended?
-  Serial.println("DLP not fully extended!");
+    SerialBT.println("DLP not fully extended!");
     return false;
   }else{
-    Serial.println("DLP fully extended");
+    SerialBT.println("DLP fully extended");
   }
 
   if(bme.readTemperature() < 10){//Is the temperature not above 10 degrees C?
-    Serial.println("Temperature too low!");
+    SerialBT.println("Temperature too low!");
     return false;
   }else{
-    Serial.print("Temp (C): ");
-    Serial.println(bme.readTemperature());
+    SerialBT.print("Temp (C): ");
+    SerialBT.println(bme.readTemperature());
   }
 
   /**
@@ -182,7 +204,14 @@ bool flightChecks(){//This function will be used to return a boolean on whether 
   Add flight check for rain
   */
 
-  Serial.println("All systems are go!");
+  //Post SDK flight checks------------------------------
+
+  /**
+  Add flight check for battery level
+  */
+
+  SerialBT.println("All systems are go!");
+  flightChecked = true;
   return true;
 }
 
