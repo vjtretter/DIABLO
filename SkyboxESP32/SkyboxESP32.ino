@@ -274,7 +274,7 @@ bool flightChecks(){//This function will be used to return a boolean on whether 
   }
 
   int speed = checkWindSpeed();
-  if(speed > 5){//Is the wind speed too high
+  if(speed > 3){//Is the wind speed too high
     SerialBT.print("Wind speed too high! (");
     SerialBT.print(speed);
     SerialBT.print(")");
