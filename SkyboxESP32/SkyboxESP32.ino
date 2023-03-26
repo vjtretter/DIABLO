@@ -17,6 +17,7 @@ BlockNot debounceTimer(10);
 #define retractLimit 25 //Limit switch for fully retracted DLP
 #define startButton 14  //Button on skybox to start deployment
 #define batteryLogic 5  //Output pin to toggle whether batteries are charging or connected to the drone
+#define ledPin 13       //Onboard LED
 
 Adafruit_BME280 bme; // I2C instantiation for weather station
 
@@ -39,10 +40,11 @@ actuatorState actuator = stopped_state;
 bool asked_user = false; // Keep track of whether the user has been asked the question yet
 bool flightChecked = false; //Have flight checks been run?
 bool batteryCharging = false; //toggle to toggle battery charging switch
+bool chargeFlag = false;    //Ok to start charging?
 
 void setup() {
   Serial.begin(115200);
-  // Pin modes
+  // Pin setup
   pinMode(pwmPin, OUTPUT);
   pinMode(PIN_IN1, OUTPUT);
   pinMode(PIN_IN2, OUTPUT);
@@ -51,6 +53,7 @@ void setup() {
   pinMode(startButton, INPUT_PULLUP);
   attachInterrupt(startButton, button_isr, FALLING);//Attach interruput to the button
   pinMode(batteryLogic, OUTPUT);
+  pinMode(ledPin, OUTPUT);
 
   //------------------------------------------------
   //Code for BME280
@@ -78,7 +81,9 @@ void setup() {
   digitalWrite(PIN_IN1, LOW); // control the motor's direction in clockwise
   digitalWrite(PIN_IN2, LOW);  // control the motor's direction in clockwise
 
-  digitalWrite(batteryLogic, LOW);  //Batteryies start conneected to drone
+  digitalWrite(batteryLogic, LOW);  //Batteries start conneected to drone
+
+  digitalWrite(ledPin, LOW);//Start LED pin off
 
   // Bluetooth
   
@@ -90,23 +95,27 @@ void loop() {
 
   //When DLP is fully extended
   if(!digitalRead(extendLimit) && actuator == stopped_state && !flightChecked){
+    chargeFlag = true;
     safeDelay(1000);
     if(flightChecks()){//Wait 1s and then do flight checks
       //If flight checks are good
+      digitalWrite(ledPin, HIGH);//Turn on LED, indicate good flight conditions/deploy drone
     }else{
       //If flight checks encounter a problem
       retract();
     }
   }
 
-  if(!digitalRead(retractLimit) && actuator == stopped_state && !batteryCharging){
+  //when DLP is fully closed
+  if(!digitalRead(retractLimit) && actuator == stopped_state && !batteryCharging && chargeFlag){
     /**
     Communicate with SDK to turn off drone before charging batteries
     Check that batteries are connected
     */
-
+    SerialBT.println("Start battery charging");
     digitalWrite(batteryLogic, HIGH);//Start charging
-
+    digitalWrite(ledPin, LOW);//Reset LED pin
+    flightChecked = false;//Reset flight checks
     batteryCharging = true;
   }
 
@@ -152,7 +161,6 @@ void ARDUINO_ISR_ATTR button_isr() {
     }else if(!digitalRead(retractLimit) && actuator == stopped_state){
       SerialBT.println("Retract limit pressed and button pressed");
       extend();
-      flightChecked = false;//Reset flight checks
     }
   }
 }
