@@ -107,6 +107,10 @@ void loop() {
   }
 
   //when DLP is fully closed
+  Serial.print(!digitalRead(retractLimit));
+  Serial.print(actuator == stopped_state);
+  Serial.print(!batteryCharging);
+  Serial.println(chargeFlag);
   if(!digitalRead(retractLimit) && actuator == stopped_state && !batteryCharging && chargeFlag){
     /**
     Communicate with SDK to turn off drone before charging batteries
@@ -160,6 +164,9 @@ void ARDUINO_ISR_ATTR button_isr() {
       retract();
     }else if(!digitalRead(retractLimit) && actuator == stopped_state){
       SerialBT.println("Retract limit pressed and button pressed");
+      digitalWrite(ledPin, LOW);//Reset LED pin
+      batteryCharging = false;
+      safeDelay(50);//give relays a bit to reset
       extend();
     }
   }
