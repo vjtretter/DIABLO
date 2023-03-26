@@ -7,8 +7,9 @@
 #include <BlockNot.h>
 
 BluetoothSerial SerialBT;
-BlockNot debounceTimer(10);
+Adafruit_BME280 bme; // I2C instantiation for weather station
 
+//---------------------------------------
 // Pin definitions
 #define pwmPin 4 // PWM-capable GPIO pin
 #define PIN_IN1  27 // ESP32 pin GIOP27 connected to the IN1 pin L298N
@@ -18,9 +19,21 @@ BlockNot debounceTimer(10);
 #define startButton 14  //Button on skybox to start deployment
 #define batteryLogic 5  //Output pin to toggle whether batteries are charging or connected to the drone
 #define ledPin 13       //Onboard LED
+//Analog Pins
+const int anenometerPin = A4; //Pin 36
+//----------------------------------------
 
-Adafruit_BME280 bme; // I2C instantiation for weather station
+//----------------------------------------
+//Anenometer variables
+bool windTriggered = false;
+long lastWindTrigger = 0;
+int windSpeed; //in m/s
+const int windAvgSize = 100;
+int rollAvgWind[windAvgSize];
+//----------------------------------------
 
+//----------------------------------------
+//Motor driver variables
 // PWM properties
 const int freq = 10000; // Frequency in Hz
 const int motorChannel = 0; // PWM channel
@@ -28,6 +41,7 @@ const int resolution = 8; // Resolution in bits (e.g., 8-bit resolution = 0-255)
 
 // Motor speed
 const int motorSpeed = 255; // Set a value between 0 (stopped) and 255 (full speed)
+//-----------------------------------------
 
 enum actuatorState{
   stopped_state,
@@ -44,6 +58,7 @@ bool chargeFlag = false;    //Ok to start charging?
 
 void setup() {
   Serial.begin(115200);
+  //-------------------------------------------------  
   // Pin setup
   pinMode(pwmPin, OUTPUT);
   pinMode(PIN_IN1, OUTPUT);
@@ -54,9 +69,10 @@ void setup() {
   attachInterrupt(startButton, button_isr, FALLING);//Attach interruput to the button
   pinMode(batteryLogic, OUTPUT);
   pinMode(ledPin, OUTPUT);
+  //------------------------------------------------
 
   //------------------------------------------------
-  //Code for BME280
+  //Setup for BME280
   unsigned status = bme.begin(0x76);  
   // You can also pass in a Wire library object like &Wire2
   // status = bme.begin(0x76, &Wire2)
@@ -69,6 +85,8 @@ void setup() {
       Serial.print("        ID of 0x61 represents a BME 680.\n");
       while (1) delay(10);
   }
+  //-----------------------------------------------
+
   //-----------------------------------------------
   // Configure the PWM pin
   ledcSetup(motorChannel, freq, resolution);
@@ -84,14 +102,19 @@ void setup() {
   digitalWrite(batteryLogic, LOW);  //Batteries start conneected to drone
 
   digitalWrite(ledPin, LOW);//Start LED pin off
+  //------------------------------------------------
 
+  //------------------------------------------------
   // Bluetooth
-  
   SerialBT.begin("Skybox"); //Bluetooth device name
   Serial.println("The device started, now you can pair it with bluetooth!");
+  //------------------------------------------------
 }
 
 void loop() {
+  checkWindSpeed();
+  //Serial.println(checkWindSpeed());
+  //Serial.println(analogRead(anenometerPin));
 
   //When DLP is fully extended
   if(!digitalRead(extendLimit) && actuator == stopped_state && !flightChecked){
@@ -107,10 +130,10 @@ void loop() {
   }
 
   //when DLP is fully closed
-  Serial.print(!digitalRead(retractLimit));
-  Serial.print(actuator == stopped_state);
-  Serial.print(!batteryCharging);
-  Serial.println(chargeFlag);
+  // Serial.print(!digitalRead(retractLimit));
+  // Serial.print(actuator == stopped_state);
+  // Serial.print(!batteryCharging);
+  // Serial.println(chargeFlag);
   if(!digitalRead(retractLimit) && actuator == stopped_state && !batteryCharging && chargeFlag){
     /**
     Communicate with SDK to turn off drone before charging batteries
@@ -152,6 +175,45 @@ void loop() {
       }
     }
   }
+}
+
+int checkWindSpeed(){
+  int analogWind = analogRead(anenometerPin);
+  
+  if(analogWind == 0 && !windTriggered){
+    safeDelay(40);
+    if(analogWind == 0){
+      windTriggered = true;;
+      windSpeed = 840/(millis() - lastWindTrigger); //convert to m/s
+      lastWindTrigger = millis();
+      //Serial.println("Wind Triggered");
+    }
+  }else if(analogWind > 500){
+    safeDelay(40);
+    if(analogWind > 500){
+      windTriggered = false;
+    }
+  }
+  if((millis() - lastWindTrigger) > 2500){
+    windSpeed = 0;//Set windspeed to 0 if last trigger is taking too long
+  }
+
+  return updateWindAvg(windSpeed);
+}
+
+int updateWindAvg(int speed){
+  for(int i=0;i<windAvgSize-1;i++){
+    rollAvgWind[i + 1] = rollAvgWind[i];//Rotate array right
+  }
+  rollAvgWind[0] = speed;
+  int total = 0;
+  for(int i=0;i<windAvgSize;i++){
+    total += rollAvgWind[i];
+  }
+
+  unsigned int average = total/windAvgSize;
+  if(average > 1000){average = 0;}//Get rid of unrealistic return values
+  return average;
 }
 
 //When the button is pressed and is fully retracted
@@ -211,9 +273,17 @@ bool flightChecks(){//This function will be used to return a boolean on whether 
     SerialBT.println(bme.readTemperature());
   }
 
-  /**
-  Add flight check for wind speed
-  */
+  int speed = checkWindSpeed();
+  if(speed > 5){//Is the wind speed too high
+    SerialBT.print("Wind speed too high! (");
+    SerialBT.print(speed);
+    SerialBT.print(")");
+    return false;
+  }else{
+    SerialBT.print("Wind speed: ");
+    SerialBT.print(speed);
+    SerialBT.println(" m/s");
+  }
 
   /**
   Add flight check for rain
