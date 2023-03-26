@@ -1,6 +1,7 @@
 // Pins for wind speed and direction
-const int windSpeedPin = A2;
+const int analogWindPin = A2;
 
+int windSpeed; //in m/s
 
 bool windTriggered = false;
 long lastTrigger = 0;
@@ -11,23 +12,19 @@ void setup() {
 
 void loop() {
   // Read wind speed and direction
-  int windSpeed = analogRead(windSpeedPin);
-
-  // Convert wind speed to m/s (adjust the conversion factor to match your sensor)
-  //float windSpeedMs = windSpeed;
+  int analogWind = analogRead(analogWindPin);
   
-  if(windSpeed == 0 && !windTriggered){
-    safeDelay(20);
-    if(windSpeed == 0){
-      windTriggered = true;
-      Serial.print("\ttime since last trigger: ");
-      Serial.println(millis() - lastTrigger);
+  if(analogWind == 0 && !windTriggered){
+    if(analogWind == 0){
+      windTriggered = true;;
+      windSpeed = 840/(millis() - lastTrigger);
       lastTrigger = millis();
     }
-  }else if(windSpeed > 200){
+  }else if(analogWind > 50){
     windTriggered = false;
     
   }
+  Serial.println(windSpeed);
 }
 
 void safeDelay(long duration_millis){
