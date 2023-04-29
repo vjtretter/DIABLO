@@ -19,6 +19,6 @@ MotorDriverDirection2	==> 15\
 ExtendLimitSwitch	==> 26\
 RetractLimitSwitch	==> 25\
 StartButton		==> 14\
-BatteryLogic		==> 5\
+BatteryLogic		==> 5
 
 Anenometer		==> 36 (A4)
