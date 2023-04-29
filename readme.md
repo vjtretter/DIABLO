@@ -13,7 +13,7 @@ The file SkyboxESP32/SkyboxESP32.ino is the heart of this project.  This code al
 There is a pin reserved for battery checks, but as of now, it is not implemented.
 
 The pinout of the ESP32 is:
-MotorDriver PWM		==> 4\n
+MotorDriver PWM		==> 4\
 MotorDriverDirection1	==> 27
 MotorDriverDirection2	==> 15
 ExtendLimitSwitch	==> 26
